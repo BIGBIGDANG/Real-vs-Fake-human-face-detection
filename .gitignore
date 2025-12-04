@@ -1,0 +1,4 @@
+# Ignore dataset directory (top-level)
+dataset/
+__pycache__/
+
