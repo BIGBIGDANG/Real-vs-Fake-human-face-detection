@@ -1,4 +1,4 @@
-````markdown
+
 # Real vs Fake Face Classification
 
 Binary classification task: distinguish **real faces (CelebA-HQ)** from **fake faces (StyleGAN-generated)**.
@@ -15,7 +15,7 @@ Binary classification task: distinguish **real faces (CelebA-HQ)** from **fake f
 pip install torch torchvision pandas pillow matplotlib numpy
 ````
 
----
+
 
 ## 2. Dataset Structure
 
