@@ -1,21 +1,31 @@
-
 # Real vs Fake Face Classification
 
 Binary classification task: distinguish **real faces (CelebA-HQ)** from **fake faces (StyleGAN-generated)**.
 
-- Framework: PyTorch + ResNet18  
-- Data: `train.csv` / `valid.csv` + image paths  
+- Framework: PyTorch + ResNet18
+- Data: `train.csv` / `valid.csv` + image paths
 - Visualization: random prediction grid image
 
----
+Access to the data
+
+```python
+import kagglehub
+
+# Download latest version
+path = kagglehub.dataset_download("sachchitkunichetty/rvf10k")
+
+print("Path to dataset files:", path)
+```
+
+## Results
+
+![](pred_examples.png)
 
 ## 1. Environment
 
 ```bash
 pip install torch torchvision pandas pillow matplotlib numpy
-````
-
-
+```
 
 ## 2. Dataset Structure
 
@@ -33,8 +43,8 @@ rvf10k/
 
 Each CSV (`train.csv`, `valid.csv`) must contain at least:
 
-* `label`: `0 = fake`, `1 = real`
-* `path`: path **relative to `rvf10k/`**, e.g. `train/real/28609.jpg`
+- `label`: `0 = fake`, `1 = real`
+- `path`: path **relative to `rvf10k/`**, e.g. `train/real/28609.jpg`
 
 The dataset code uses:
 
@@ -48,9 +58,9 @@ img_path = os.path.join(root_dir, row["path"])  # root_dir = "rvf10k"
 
 `train.py`:
 
-* Loads data from `rvf10k/train.csv` and `rvf10k/valid.csv`
-* Trains a ResNet18 binary classifier
-* Saves the best model weights to `best_resnet18_rvf10k.pth` (based on validation accuracy)
+- Loads data from `rvf10k/train.csv` and `rvf10k/valid.csv`
+- Trains a ResNet18 binary classifier
+- Saves the best model weights to `best_resnet18_rvf10k.pth` (based on validation accuracy)
 
 Run:
 
@@ -64,9 +74,9 @@ python train.py
 
 `predict.py`:
 
-* Loads `best_resnet18_rvf10k.pth`
-* Evaluates on the validation set (loss / accuracy)
-* Randomly samples several images and generates a prediction grid `pred_examples.png`
+- Loads `best_resnet18_rvf10k.pth`
+- Evaluates on the validation set (loss / accuracy)
+- Randomly samples several images and generates a prediction grid `pred_examples.png`
 
 Run:
 
@@ -84,10 +94,10 @@ To display the visualization in Markdown (e.g., on GitHub):
 
 ## 5. Model & Preprocessing
 
-* Backbone: ResNet18
-* Final layer: `fc -> Linear(in_features, 2)` (fake / real)
-* Input size: `128 x 128` RGB
-* Transform / normalization:
+- Backbone: ResNet18
+- Final layer: `fc -> Linear(in_features, 2)` (fake / real)
+- Input size: `128 x 128` RGB
+- Transform / normalization:
 
 ```python
 transforms.Resize((128, 128)),
