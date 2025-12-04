@@ -86,10 +86,6 @@ python predict.py
 
 To display the visualization in Markdown (e.g., on GitHub):
 
-```markdown
-![Prediction Examples](pred_examples.png)
-```
-
 ---
 
 ## 5. Model & Preprocessing
