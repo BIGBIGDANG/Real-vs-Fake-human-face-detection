@@ -11,6 +11,8 @@ from torchvision import transforms, models
 import matplotlib.pyplot as plt
 
 from dataloader import *
+from utils import get_dataset_paths
+
 
 # ------------------------
 # 加载模型
@@ -30,6 +32,7 @@ def load_model(weight_path, num_classes=2):
     model = model.to(device)
     model.eval()
     return model, device
+
 
 # ------------------------
 # 评估 valid 集 accuracy
@@ -58,11 +61,14 @@ def evaluate(model, loader, device):
     acc = correct / total
     return avg_loss, acc
 
+
 # ------------------------
 # 可视化若干预测结果
 # ------------------------
 @torch.no_grad()
-def visualize_predictions(model, dataset, device, num_images=16, save_path="pred_examples.png"):
+def visualize_predictions(
+    model, dataset, device, num_images=16, save_path="pred_examples.png"
+):
     """
     从 dataset 中随机选 num_images 张图片，画成网格：
     标题显示：Pred/True/Prob，预测正确为绿色，错误为红色
@@ -81,10 +87,10 @@ def visualize_predictions(model, dataset, device, num_images=16, save_path="pred
     plt.figure(figsize=(4 * n_cols, 4 * n_rows))
 
     for i, idx in enumerate(indices):
-        img_tensor, label = dataset[idx]    # 已经是 [C,H,W] 且归一化后的张量
+        img_tensor, label = dataset[idx]  # 已经是 [C,H,W] 且归一化后的张量
 
         # 模型输入
-        input_tensor = img_tensor.unsqueeze(0).to(device)   # [1,C,H,W]
+        input_tensor = img_tensor.unsqueeze(0).to(device)  # [1,C,H,W]
         outputs = model(input_tensor)
         probs = torch.softmax(outputs, dim=1)[0]
         pred = torch.argmax(probs).item()
@@ -110,6 +116,7 @@ def visualize_predictions(model, dataset, device, num_images=16, save_path="pred
     # 如果你在本地运行，也可以 plt.show()
     # plt.show()
 
+
 # ------------------------
 # 5. 主函数：加载 valid 集 → 评估 → 可视化
 # ------------------------
@@ -117,23 +124,25 @@ def main():
     # 和训练时保持一致的 img_size 和 Normalize
     img_size = 128
 
-    valid_tf = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5, 0.5, 0.5],
-                             [0.5, 0.5, 0.5]),
-    ])
+    valid_tf = transforms.Compose(
+        [
+            transforms.Resize((img_size, img_size)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+        ]
+    )
 
-    root_dir = "/home/v1-5600/renlian_recognize/dataset/rvf10k"
-    valid_csv_path = os.path.join(root_dir, "valid.csv")
+    _, root_dir, _, valid_csv_path = get_dataset_paths()
 
     valid_dataset = FaceRealFakeDataset(valid_csv_path, root_dir, transform=valid_tf)
-    valid_loader = DataLoader(valid_dataset, batch_size=64, shuffle=False, num_workers=4)
+    valid_loader = DataLoader(
+        valid_dataset, batch_size=64, shuffle=False, num_workers=4
+    )
 
     print("Valid samples:", len(valid_dataset))
 
     # 1) 加载训练好的模型
-    weight_path = "best_resnet18_rvf10k.pth"   # 按你保存的文件名改
+    weight_path = "best_resnet18_rvf10k.pth"  # 按你保存的文件名改
     model, device = load_model(weight_path, num_classes=2)
 
     # 2) 先整体算一下 valid 的 loss / acc
@@ -141,9 +150,10 @@ def main():
     print(f"[Valid] loss={val_loss:.4f}, acc={val_acc:.4f}")
 
     # 3) 再随机抽几张图做可视化网格
-    visualize_predictions(model, valid_dataset, device,
-                          num_images=16,
-                          save_path="pred_examples.png")
+    visualize_predictions(
+        model, valid_dataset, device, num_images=16, save_path="pred_examples.png"
+    )
+
 
 if __name__ == "__main__":
     main()
