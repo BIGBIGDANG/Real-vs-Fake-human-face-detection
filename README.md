@@ -24,7 +24,7 @@ print("Path to dataset files:", path)
 ## 1. Environment
 
 ```bash
-pip install torch torchvision pandas pillow matplotlib numpy
+pip install -r requirements.txt
 ```
 
 ## 2. Dataset Structure
@@ -83,8 +83,6 @@ Run:
 ```bash
 python predict.py
 ```
-
-To display the visualization in Markdown (e.g., on GitHub):
 
 ---
 
