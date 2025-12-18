@@ -1,5 +1,7 @@
 import os
 from io import BytesIO
+import base64
+import subprocess
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -12,7 +14,32 @@ from torchvision import models, transforms
 # 配置
 IMG_SIZE = 128
 CLASS_NAMES = {0: "fake", 1: "real"}
-WEIGHT_PATH = os.path.join(os.path.dirname(__file__), "best_resnet18_rvf10k.pth")
+# 使用改进版训练脚本生成的权重文件
+WEIGHT_PATH = os.path.join(os.path.dirname(
+    __file__), "best_improved_resnet18.pth")
+
+
+# 与 train.ipynb / train.py 中一致的模型结构
+class FaceResNet(nn.Module):
+    def __init__(self, num_classes: int = 2):
+        super(FaceResNet, self).__init__()
+        # 使用 ResNet18 作为 backbone（训练时使用的是 pretrained=True）
+        self.backbone = models.resnet18(pretrained=True)
+        in_features = self.backbone.fc.in_features
+        # 去掉原始全连接层
+        self.backbone.fc = nn.Identity()
+        # 自定义分类头，与训练代码保持一致
+        self.classifier = nn.Sequential(
+            nn.Linear(in_features, 256),
+            nn.ReLU(),
+            nn.Dropout(p=0.5),
+            nn.Linear(256, num_classes),
+        )
+
+    def forward(self, x):
+        features = self.backbone(x)
+        out = self.classifier(features)
+        return out
 
 
 def build_transform():
@@ -26,12 +53,9 @@ def build_transform():
 
 
 def load_model(weight_path: str, num_classes: int = 2):
-    """加载训练好的 ResNet18 模型权重。"""
+    """加载使用 FaceResNet 训练好的模型权重。"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = models.resnet18(weights=None)
-    in_features = model.fc.in_features
-    model.fc = nn.Linear(in_features, num_classes)
-
+    model = FaceResNet(num_classes=num_classes)
     state_dict = torch.load(weight_path, map_location=device)
     model.load_state_dict(state_dict)
     model = model.to(device)
@@ -43,6 +67,15 @@ app = Flask(__name__)
 CORS(app)
 _transform = build_transform()
 _model, _device = load_model(WEIGHT_PATH)
+
+
+def _encode_image_to_base64(path: str) -> str | None:
+    """将图片文件编码为 base64，便于通过 JSON 返回。"""
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        data = f.read()
+    return "data:image/png;base64," + base64.b64encode(data).decode("utf-8")
 
 
 @app.route("/ping", methods=["GET"])
@@ -78,9 +111,64 @@ def predict():
         {
             "label": pred_label,
             "confidence": confidence,
-            "probs": {
-                CLASS_NAMES[i]: float(probs[i].item()) for i in range(probs.size(0))
-            },
+            "probs": {CLASS_NAMES[i]: float(probs[i].item()) for i in range(probs.size(0))},
+        }
+    )
+
+
+@app.route("/train", methods=["POST"])
+def train():
+    """
+    训练接口：
+      - 调用 train.py 脚本进行一次完整训练
+      - 训练脚本应在项目根目录下生成四张可视化图片，例如：
+          1) train_loss_curve.png
+          2) train_acc_curve.png
+          3) train_feature_maps.png
+          4) train_gradcam.png
+      - 本接口将这些图片以 base64 的形式返回给前端
+    """
+    project_root = os.path.dirname(__file__)
+
+    # 调用独立的训练脚本，确保与命令行运行效果一致
+    proc = subprocess.run(
+        ["python", "train.py"],
+        cwd=project_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    if proc.returncode != 0:
+        return jsonify(
+            {
+                "status": "error",
+                "message": "train.py 执行失败",
+                "stdout": proc.stdout[-2000:],  # 截断返回，防止过长
+                "stderr": proc.stderr[-2000:],
+            }
+        ), 500
+
+    # 这里的文件名需要与 train.py 中保存图片的逻辑保持一致
+    image_names = [
+        "train_loss_curve.png",
+        "train_acc_curve.png",
+        "train_feature_maps.png",
+        "train_gradcam.png",
+    ]
+
+    images = {}
+    for name in image_names:
+        full_path = os.path.join(project_root, name)
+        b64 = _encode_image_to_base64(full_path)
+        if b64 is not None:
+            images[name] = b64
+
+    return jsonify(
+        {
+            "status": "ok",
+            "images": images,
+            "stdout": proc.stdout[-2000:],
         }
     )
 

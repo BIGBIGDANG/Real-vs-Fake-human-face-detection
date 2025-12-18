@@ -1,3 +1,7 @@
+from utils import get_dataset_paths
+from torchvision import transforms
+from torch.utils.data import DataLoader
+import torch
 import os
 import pandas as pd
 from PIL import Image
@@ -39,11 +43,6 @@ class FaceRealFakeDataset(Dataset):
         return img, label
 
 
-import torch
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from utils import get_dataset_paths
-
 img_size = 128  # 或 256
 
 train_tf = transforms.Compose(
@@ -63,14 +62,18 @@ valid_tf = transforms.Compose(
     ]
 )
 
-base_dataset_dir = "/root/autodl-tmp/Real-vs-Fake-human-face-detection/dataset"
+
 _, root_dir, train_csv_path, valid_csv_path = get_dataset_paths()
 
-train_dataset = FaceRealFakeDataset(train_csv_path, root_dir, transform=train_tf)
-valid_dataset = FaceRealFakeDataset(valid_csv_path, root_dir, transform=valid_tf)
+train_dataset = FaceRealFakeDataset(
+    train_csv_path, root_dir, transform=train_tf)
+valid_dataset = FaceRealFakeDataset(
+    valid_csv_path, root_dir, transform=valid_tf)
 
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)
-valid_loader = DataLoader(valid_dataset, batch_size=64, shuffle=False, num_workers=4)
+train_loader = DataLoader(train_dataset, batch_size=64,
+                          shuffle=True, num_workers=4)
+valid_loader = DataLoader(valid_dataset, batch_size=64,
+                          shuffle=False, num_workers=4)
 
 # 简单检查一下
 print(len(train_dataset), len(valid_dataset))
