@@ -24,7 +24,7 @@ print("Path to dataset files:", path)
 ## 1. Environment
 
 ```bash
-pip install -r requirements.txt
+pip install torch torchvision pandas pillow matplotlib numpy flask flask-cors opencv-contrib-python
 ```
 
 ## 2. Dataset Structure

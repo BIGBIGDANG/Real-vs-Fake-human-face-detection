@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 import random
+from datetime import datetime
+import argparse
 
 # 引入你的数据加载模块
 from dataloader import *
@@ -218,9 +220,16 @@ def evaluate(model, loader, criterion, device):
 # ====================================================
 # 3. 主循环
 # ====================================================
-num_epochs = 2  # 由于有预训练，通常需要的 epoch 更少
+# 解析命令行参数
+parser = argparse.ArgumentParser(description='训练人脸真伪检测模型')
+parser.add_argument('--epochs', type=int, default=2, help='训练轮数 (默认: 2)')
+args = parser.parse_args()
+
+num_epochs = args.epochs  # 从命令行参数获取，如果没有提供则使用默认值
 best_val_acc = 0.0
-save_path = "best_improved_resnet18.pth"
+# 在文件名中添加时间戳
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+save_path = f"improved_resnet18_{timestamp}.pth"
 
 # 记录 loss / acc 用于画曲线
 train_losses = []

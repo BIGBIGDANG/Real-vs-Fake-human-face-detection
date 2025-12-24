@@ -66,7 +66,11 @@ def load_model(weight_path: str, num_classes: int = 2):
 app = Flask(__name__)
 CORS(app)
 _transform = build_transform()
-_model, _device = load_model(WEIGHT_PATH)
+
+# 模型缓存：key 为模型文件名，value 为 (model, device) 元组
+_model_cache = {}
+_default_model, _default_device = load_model(WEIGHT_PATH)
+_model_cache[os.path.basename(WEIGHT_PATH)] = (_default_model, _default_device)
 
 
 def _encode_image_to_base64(path: str) -> str | None:
@@ -83,6 +87,25 @@ def ping():
     return jsonify({"status": "ok"})
 
 
+@app.route("/getModel", methods=["GET"])
+def get_model():
+    """返回项目根目录下所有 .pth 模型文件名列表"""
+    project_root = os.path.dirname(__file__)
+    model_files = []
+    
+    try:
+        # 扫描项目根目录下的所有文件
+        for filename in os.listdir(project_root):
+            if filename.endswith(".pth") and os.path.isfile(os.path.join(project_root, filename)):
+                model_files.append(filename)
+        # 按文件名排序
+        model_files.sort()
+    except Exception as e:
+        return jsonify({"error": f"扫描模型文件失败: {str(e)}"}), 500
+    
+    return jsonify({"models": model_files})
+
+
 @app.route("/predict", methods=["POST"])
 @torch.no_grad()
 def predict():
@@ -93,14 +116,35 @@ def predict():
     if file.filename == "":
         return jsonify({"error": "empty filename"}), 400
 
+    # 获取模型文件名参数（优先从 form data，其次从 query parameter）
+    model_name = request.form.get("model") or request.args.get("model")
+    
+    # 确定要使用的模型和设备
+    if model_name:
+        # 如果指定了模型，检查缓存或加载
+        if model_name not in _model_cache:
+            # 构建模型文件路径（同级目录）
+            model_path = os.path.join(os.path.dirname(__file__), model_name)
+            if not os.path.exists(model_path):
+                return jsonify({"error": f"模型文件不存在: {model_name}"}), 400
+            try:
+                model, device = load_model(model_path)
+                _model_cache[model_name] = (model, device)
+            except Exception as e:
+                return jsonify({"error": f"加载模型失败: {str(e)}"}), 500
+        model, device = _model_cache[model_name]
+    else:
+        # 使用默认模型
+        model, device = _default_model, _default_device
+
     try:
         image_bytes = file.read()
         image = Image.open(BytesIO(image_bytes)).convert("RGB")
     except Exception:
         return jsonify({"error": "invalid image file"}), 400
 
-    tensor = _transform(image).unsqueeze(0).to(_device)
-    outputs = _model(tensor)
+    tensor = _transform(image).unsqueeze(0).to(device)
+    outputs = model(tensor)
     probs = torch.softmax(outputs, dim=1)[0]
 
     pred_idx = int(torch.argmax(probs).item())
@@ -112,6 +156,7 @@ def predict():
             "label": pred_label,
             "confidence": confidence,
             "probs": {CLASS_NAMES[i]: float(probs[i].item()) for i in range(probs.size(0))},
+            "model": model_name or os.path.basename(WEIGHT_PATH),  # 返回使用的模型名称
         }
     )
 
@@ -127,12 +172,29 @@ def train():
           3) train_feature_maps.png
           4) train_gradcam.png
       - 本接口将这些图片以 base64 的形式返回给前端
+      - 可通过 form data 或 JSON 传入 epoch 参数来指定训练轮数
     """
     project_root = os.path.dirname(__file__)
+    
+    # 获取 epoch 参数（优先从 form data，其次从 JSON，最后使用默认值）
+    if request.is_json:
+        data = request.get_json()
+        epochs = data.get("epoch")
+    else:
+        epochs = request.form.get("epoch", 2)
+    
+    # 转换为整数，如果转换失败则使用默认值
+    try:
+        epochs = int(epochs)
+        if epochs < 1:
+            epochs = 2
+    except (ValueError, TypeError):
+        epochs = 2
 
     # 调用独立的训练脚本，确保与命令行运行效果一致
+    # 通过 --epochs 参数传递训练轮数
     proc = subprocess.run(
-        ["python", "train.py"],
+        ["python", "train.py", "--epochs", str(epochs)],
         cwd=project_root,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -167,6 +229,7 @@ def train():
     return jsonify(
         {
             "status": "ok",
+            "epochs": epochs,
             "images": images,
             "stdout": proc.stdout[-2000:],
         }

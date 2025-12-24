@@ -2,3 +2,7 @@
 dataset/
 __pycache__/
 
+*.png
+*.pth
+
+runs/
